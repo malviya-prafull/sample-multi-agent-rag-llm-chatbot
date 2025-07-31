@@ -75,50 +75,26 @@ cleanup_ports() {
 setup_backend() {
     print_header "Setting up Backend"
     
-    cd backend
-    
-    # Check if Python 3 is installed
-    if ! command_exists python3; then
-        print_error "Python 3 is not installed. Please install Python 3.13+ and try again."
+    # Check if backend.sh exists
+    if [ ! -f "backend/backend.sh" ]; then
+        print_error "backend/backend.sh not found!"
         exit 1
     fi
     
-    print_status "Python version: $(python3 --version)"
+    # Make backend.sh executable
+    chmod +x backend/backend.sh
     
-    # Create virtual environment if it doesn't exist
-    if [ ! -d "venv" ]; then
-        print_status "Creating virtual environment..."
-        python3 -m venv venv
-        print_success "Virtual environment created"
+    print_status "Using backend.sh for setup (setup-only mode)"
+    
+    # Call backend.sh in setup-only mode (won't start the server)
+    cd backend
+    ./backend.sh --setup-only >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        print_success "Backend setup completed successfully"
     else
-        print_status "Virtual environment already exists"
+        print_error "Backend setup failed. Check backend directory for issues."
+        exit 1
     fi
-    
-    # Activate virtual environment
-    print_status "Activating virtual environment..."
-    source venv/bin/activate
-    
-    # Install dependencies
-    print_status "Installing Python dependencies..."
-    pip install -r requirements.txt >/dev/null 2>&1
-    print_success "Dependencies installed"
-    
-    # Check if .env file exists
-    if [ ! -f ".env" ]; then
-        print_warning ".env file not found. Creating template..."
-        echo "NVIDIA_API_KEY=your_nvidia_api_key_here" > .env
-        print_warning "Please add your NVIDIA API key to backend/.env file"
-    fi
-    
-    # Setup database if needed
-    if [ ! -f "ecommerce.db" ] || [ ! -d "chroma_db" ]; then
-        print_status "Setting up database and vector store..."
-        python data_script.py
-        print_success "Database and vector store setup complete"
-    else
-        print_status "Database and vector store already exist"
-    fi
-    
     cd ..
 }
 
@@ -152,9 +128,12 @@ setup_frontend() {
 # Function to start backend
 start_backend() {
     print_status "Starting backend server..."
+    
     cd backend
+    
+    # Backend setup is already done, just start the server in background
     source venv/bin/activate
-    nohup uvicorn main:app --host 0.0.0.0 --port 8000 --reload > ../backend.log 2>&1 &
+    nohup ./venv/bin/python3.13 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload > ../backend.log 2>&1 &
     BACKEND_PID=$!
     cd ..
     
